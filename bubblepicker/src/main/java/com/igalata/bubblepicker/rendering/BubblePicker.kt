@@ -1,17 +1,16 @@
 package com.igalata.bubblepicker.rendering
 
 import android.content.Context
+import android.graphics.PixelFormat
 import android.opengl.GLSurfaceView
 import android.support.annotation.ColorInt
 import android.util.AttributeSet
 import android.view.MotionEvent
 import com.igalata.bubblepicker.BubblePickerListener
-import com.igalata.bubblepicker.BubbleSize
 import com.igalata.bubblepicker.R
-import com.igalata.bubblepicker.exception.EmptyPickerException
+import com.igalata.bubblepicker.adapter.BubblePickerAdapter
 import com.igalata.bubblepicker.model.Color
 import com.igalata.bubblepicker.model.PickerItem
-import java.util.*
 
 /**
  * Created by irinagalata on 1/19/17.
@@ -23,10 +22,20 @@ class BubblePicker : GLSurfaceView {
             field = value
             renderer.backgroundColor = Color(value)
         }
+    @Deprecated(level = DeprecationLevel.WARNING,
+            message = "Use BubblePickerAdapter for the view setup instead")
     var items: ArrayList<PickerItem>? = null
         set(value) {
             field = value
             renderer.items = value ?: ArrayList()
+        }
+    var adapter: BubblePickerAdapter? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                renderer.items = ArrayList((0..value.totalCount - 1)
+                        .map { value.getItem(it) }.toList())
+            }
         }
     var maxSelectedCount: Int? = null
         set(value) {
@@ -36,14 +45,20 @@ class BubblePicker : GLSurfaceView {
         set(value) {
             renderer.listener = value
         }
-    var bubbleSize = BubbleSize.MEDIUM
+    var bubbleSize = 50
         set(value) {
-            if (value >= BubbleSize.SMALL && value <= BubbleSize.LARGE) {
+            if (value in 1..100) {
                 renderer.bubbleSize = value
             }
         }
     val selectedItems: List<PickerItem?>
         get() = renderer.selectedItems
+
+    var centerImmediately = false
+        set(value) {
+            field = value
+            renderer.centerImmediately = value
+        }
 
     private val renderer = PickerRenderer(this)
     private var startX = 0f
@@ -53,15 +68,13 @@ class BubblePicker : GLSurfaceView {
 
     constructor(context: Context?) : this(context, null)
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {
+        setZOrderOnTop(true)
         setEGLContextClientVersion(2)
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
+        holder.setFormat(PixelFormat.RGBA_8888)
         setRenderer(renderer)
         renderMode = RENDERMODE_CONTINUOUSLY
         attrs?.let { retrieveAttrubutes(attrs) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (items?.isEmpty() ?: false) throw EmptyPickerException()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -78,7 +91,7 @@ class BubblePicker : GLSurfaceView {
             }
             MotionEvent.ACTION_MOVE -> {
                 if (isSwipe(event)) {
-                    renderer.swipe(event.x, event.y)
+                    renderer.swipe(previousX - event.x, previousY - event.y)
                     previousX = event.x
                     previousY = event.y
                 } else {
@@ -91,7 +104,7 @@ class BubblePicker : GLSurfaceView {
         return true
     }
 
-    private fun release() = postDelayed({ renderer.release() }, 1000)
+    private fun release() = postDelayed({ renderer.release() }, 0)
 
     private fun isClick(event: MotionEvent) = Math.abs(event.x - startX) < 20 && Math.abs(event.y - startY) < 20
 
